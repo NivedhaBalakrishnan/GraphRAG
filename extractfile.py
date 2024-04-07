@@ -61,6 +61,7 @@ class ProcessFile():
 
             dict_data = metadata
             dict_data['text'] = file_content
+            dict_data['article'] = file_name
             
             with open(f'rpapers_json/{file_name}.json', 'w') as f:
                 json.dump(dict_data, f)
@@ -73,7 +74,7 @@ class ProcessFile():
     def process_files(self, directory):
         for file in os.listdir(directory):
             file_name = file.split('.')[0]
-            if file_name != "paper1":
+            if file_name == "paper1":
                 continue
             if file.endswith(".txt"):
                 with open(f"{directory}/{file}", 'r') as f:
@@ -99,7 +100,7 @@ class ProcessFile():
 
 if __name__ == "__main__":
     pf = ProcessFile()
-    # pf.process_files('rpapers')
+    pf.process_files('rpapers')
     pf.change_keys('rpapers_json')
     
 

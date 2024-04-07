@@ -45,6 +45,7 @@ class NEO4J_KG():
         self.VECTOR_EMBEDDING_PROPERTY = 'textEmbedding'
 
 
+
     def chunk_text(self, text):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size = 2000,
@@ -56,16 +57,19 @@ class NEO4J_KG():
         return chunks
     
     
-    def create_chunks(self, json_data, filename):
+    def create_chunks(self, json_data, filename, chunk_seq_id=0):
+        id = filename[-1]
         chunks_with_metadata = []
         chunks = self.chunk_text(json_data['text'])
         self.log.info(f"Text split into {len(chunks)} chunks")
-
         for i, chunk in enumerate(chunks):
             json_data['text'] = chunk
             json_data['chunkSeqId'] = i
-            json_data['chunkId'] = f"{filename}_chunk{i:04d}"
-            chunks_with_metadata.append(json_data)
+            chunk_id = f"{filename}_{chunk_seq_id}"
+            json_data['chunkId'] = chunk_id
+            json_data['about'] = 'Inflammation'
+            chunks_with_metadata.append(json_data.copy())
+            chunk_seq_id += 1
         return chunks_with_metadata
     
 
@@ -76,22 +80,24 @@ class NEO4J_KG():
 
 
 
-    def create_graph_nodes(self, chunks_with_metadata):
+    def create_graph_nodes(self, chunk):
         merge_chunk_node_query = """
                                 MERGE(mergedChunk:Chunk {chunkId: $chunkParam.chunkId})
-                                    ON CREATE SET 
-                                        mergedChunk.source = $chunkParam.source,
-                                        mergedChunk.authors = $chunkParam.authors, 
-                                        mergedChunk.journal = $chunkParam.journal, 
-                                        mergedChunk.publicationdate = $chunkParam.publicationdate, 
-                                        mergedChunk.summary = $chunkParam.summary, 
-                                        mergedChunk.text = $chunkParam.text, 
-                                        mergedChunk.chunkSeqId = $chunkParam.chunkSeqId
+                                ON CREATE SET
+                                    mergedChunk.source = $chunkParam.source,
+                                    mergedChunk.authors = $chunkParam.authors,
+                                    mergedChunk.journal = $chunkParam.journal,
+                                    mergedChunk.publicationdate = $chunkParam.publicationdate,
+                                    mergedChunk.summary = $chunkParam.summary,
+                                    mergedChunk.text = $chunkParam.text,
+                                    mergedChunk.chunkSeqId = $chunkParam.chunkSeqId,
+                                    mergedChunk.article = $chunkParam.article,
+                                    mergedChunk.about = $chunkParam.about
                                 RETURN mergedChunk
                                 """
         
         try:
-            self.kg.query(merge_chunk_node_query, params={"chunkParam": chunks_with_metadata[0]})
+            self.kg.query(merge_chunk_node_query, params={"chunkParam": chunk})
             self.kg.query("""CREATE CONSTRAINT unique_chunk IF NOT EXISTS 
                           FOR (c:Chunk) REQUIRE c.chunkId IS UNIQUE""")
             # self.log.info(f"Created graph nodes")
@@ -150,7 +156,6 @@ class NEO4J_KG():
                 MATCH (chunk:Chunk) WHERE chunk.textEmbedding IS NULL
                 RETURN chunk
             """)
-
             for chunk in chunks:
                 # Calculate the embedding for the chunk text
                 embedding = embeddings.embed_query(chunk['chunk']['text'])
@@ -167,6 +172,97 @@ class NEO4J_KG():
             raise e
 
 
+    def create_article_info(self, article):
+        try:
+            cypher = """
+                    MATCH (anyChunk:Chunk) 
+                    WHERE anyChunk.article = $article
+                    WITH anyChunk LIMIT 1
+                    RETURN anyChunk { .source, .authors, .journal, .publicationdate, .summary, .article, .about} as article_info
+                    """
+            article_info = self.kg.query(cypher, params={'article': article})
+            self.log.info(f"Article info created: {article_info}")
+            return article_info[0]["article_info"]
+        except Exception as e:
+            self.log.error(f"Article info not created: {e}")
+            raise e
+    
+    def merge_article_node(self, article_info):
+        try:
+            cypher = """
+                MERGE (f:Article {article: $ArticleInfoParam.article })
+                ON CREATE 
+                    SET f.authors = $ArticleInfoParam.authors
+                    SET f.source = $ArticleInfoParam.source
+                    SET f.journal = $ArticleInfoParam.journal
+                    SET f.publicationdate = $ArticleInfoParam.publicationdate
+                    SET f.summary = $ArticleInfoParam.summary
+                    SET f.about = $ArticleInfoParam.about
+            """
+
+            self.kg.query(cypher, params={'ArticleInfoParam': article_info})
+            self.log.info(f"Article node merged")
+        except Exception as e:
+            self.log.error(f"Article node not merged: {e}")
+            raise e
+
+    def create_relationship(self, article_info):
+        try:
+            cypher = """
+                    MATCH (from_same_article:Chunk)
+                    WHERE from_same_article.article = $articleIdParam
+                    WITH from_same_article
+                        ORDER BY from_same_article.chunkSeqId ASC
+                    WITH collect(from_same_article) as section_chunk_list
+                        CALL apoc.nodes.link(
+                            section_chunk_list, 
+                            "NEXT", 
+                            {avoidDuplicates: true}
+                        )
+                    RETURN size(section_chunk_list)
+                    """
+            # self.kg.query(cypher, params={'articleIdParam': article_info['article']})
+            self.log.info(f"Relationship created")
+        except Exception as e:
+            self.log.error(f"Relationship not created: {e}")
+            raise e
+    
+
+    def connext_to_parent(self):
+        try:
+            cypher = """
+                    MATCH (c:Chunk), (f:Article)
+                        WHERE c.article = f.article
+                    MERGE (c)-[newRelationship:PART_OF]->(f)
+                    RETURN count(newRelationship)
+                """
+            self.kg.query(cypher)
+            self.log.info(f"Connected to parent")
+        except Exception as e:
+            self.log.error(f"Connection to parent not created: {e}")
+            raise e
+
+
+
+    def connect_all_article_bidirectional(self):
+        try:
+            # Cypher query to match and connect all forms bidirectionally
+            cypher_query = """
+                MATCH (a:Article), (b:Article)
+                WHERE a <> b AND a.about = b.about
+                MERGE (a)-[:CONNECTED_TO]->(b)
+                MERGE (b)-[:CONNECTED_TO]->(a)
+                RETURN count(*) AS connections
+            """
+            result = self.kg.query(cypher_query)
+            connections_count = result[0]['connections']
+            self.log.info(f"Established bidirectional connections between all forms: {connections_count}")
+        except Exception as e:
+            self.log.error(f"Error while establishing bidirectional connections: {e}")
+            raise e
+
+
+
     def process(self, directory):
         files = os.listdir(directory)
         
@@ -177,16 +273,21 @@ class NEO4J_KG():
             self.log.info(f"Processing file: {file_name}")
             chunked_with_metadata = self.create_chunks(json_data, file_name)
             # self.log.info(f"Chunked data: {chunked_with_metadata}")
-            self.create_graph_nodes(chunked_with_metadata)
-            self.create_constraints()
+
             self.create_vector_index()
-            self.calculate_embeddings()
-            self.kg.refresh_schema()
+            for chunk in chunked_with_metadata:
+                self.create_graph_nodes(chunk)
+                self.calculate_embeddings()
+            article_info = self.create_article_info(chunk["article"])
+            self.merge_article_node(article_info)
+            self.create_relationship(article_info)
+            self.connext_to_parent()
+
+        self.connect_all_article_bidirectional()
+        self.kg.refresh_schema()
         print(self.kg.schema)
         total_node_count = self.get_number_of_nodes()
         self.log.info(f"Total number of nodes: {total_node_count}")
-        
-
     
 
 
