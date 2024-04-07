@@ -1,0 +1,9 @@
+langchain
+langchain-community
+langchain-openai
+llama-index
+tiktoken
+openai
+neo4j
+python-dotenv
+streamlit

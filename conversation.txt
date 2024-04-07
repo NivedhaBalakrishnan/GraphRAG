@@ -1,0 +1,6 @@
+user: what is acute inflammation?
+bot: Acute inflammation is the initial response of the body to
+harmful stimuli and is characterized by the rapid
+recruitment of immune cells to the site of injury or
+infection.
+
