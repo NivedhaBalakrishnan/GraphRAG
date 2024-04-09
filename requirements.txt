@@ -10,3 +10,4 @@ streamlit
 matplotlib
 pyvis
 scipy
+deepeval
