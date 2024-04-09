@@ -221,7 +221,7 @@ class NEO4J_KG():
                         )
                     RETURN size(section_chunk_list)
                     """
-            # self.kg.query(cypher, params={'articleIdParam': article_info['article']})
+            self.kg.query(cypher, params={'articleIdParam': article_info['article']})
             self.log.info(f"Relationship created")
         except Exception as e:
             self.log.error(f"Relationship not created: {e}")

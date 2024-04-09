@@ -19,6 +19,8 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from neo4j import GraphDatabase
 import openai
 
+from eval import Evaluation
+
 
 
 class GraphRAG():
@@ -42,7 +44,7 @@ class GraphRAG():
         self.VECTOR_SOURCE_PROPERTY = 'text'
         self.VECTOR_EMBEDDING_PROPERTY = 'textEmbedding'
 
-
+        self.evaluation = Evaluation()
 
     
     def get_retriever(self):
@@ -93,12 +95,18 @@ class GraphRAG():
             """Pretty print the chain's response to a question"""
             response = chain.invoke({"question": question},
                 return_only_outputs=True,)
-            return textwrap.fill(response['answer'], 60)
+            return textwrap.fill(response['answer'], 60), response['source']
         except Exception as e:
             self.log.error(f'Error pretty printing chain: {e}')
             raise e
 
+    def get_evaluated(self, question, source, answer):
+        self.evaluation.evaluate(question, source, answer)
 
-# if __name__ == '__main__':
-#     graph = GraphRAG()
-#     graph.get_response('What is the capital of France?')
+
+
+if __name__ == '__main__':
+    graph = GraphRAG()
+    question = 'What is inflammation?'
+    answer, source = graph.get_response(question)
+    graph.get_evaluated(question, source, answer)
