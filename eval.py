@@ -132,14 +132,3 @@ class Evaluation:
     #     return metric.score
 
 
-
-# 1. 
-# query
-# retrieved document
-# answer
-
-# similary score -> cosine
-# qualitative evaluation -> COT prompt
-
-
-# csv, unique id, question, source, answer, similarity score, qualitative evaluation
