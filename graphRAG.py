@@ -102,33 +102,37 @@ class GraphRAG():
             elapsed_time = end_time - start_time
 
             sources = response.get('source_documents', '')
-            source_content = "\n".join([doc.page_content for doc in sources])
+            source_content = [doc.page_content for doc in sources]
             return textwrap.fill(response['answer'], 60), source_content, elapsed_time
         except Exception as e:
             self.log.error(f'Error pretty printing chain: {e}')
             raise e
 
+
     def get_evaluated(self, question, source, answer):
+
             evaluation = Evaluation()
             embeddings_model = OpenAIEmbeddings(api_key=self.OPENAI_API_KEY)
-            similarity_score = self.evaluation.evaluate_similarity(
-                embeddings_model,
-                answer,
-                source
-            )
+            # similarity_score = self.evaluation.evaluate_similarity(
+            #     embeddings_model,
+            #     answer,
+            #     source
+            # )
+            groundedness_score = self.evaluation.groundedness(question, source, answer)
+            context_relevancy_score = self.evaluation.context_relevancy(question, source, answer)
             score, reason = self.evaluation.evaluate(question, source, answer)
-            coherence_score, coherence_reason = evaluation.evaluate_coherence(question, answer)
+            # coherence_score, coherence_reason = evaluation.evaluate_coherence(question, answer)
             faithfulness_score, faithfulness_reason = evaluation.evaluate_faithfulness(question, answer, source)
-            #contextual_precision_score, contextual_precision_reason = evaluation.evaluate_contextual_precision(question, answer, source)
-            #contextual_recall_score, contextual_recall_reason = evaluation.evaluate_contextual_recall(question, answer, source)
+            # #contextual_precision_score, contextual_precision_reason = evaluation.evaluate_contextual_precision(question, answer, source)
+            # #contextual_recall_score, contextual_recall_reason = evaluation.evaluate_contextual_recall(question, answer, source)
             hallucination_score, hallucination_reason = evaluation.evaluate_hallucination(question, answer, source)
-            toxicity_score, toxicity_reason = evaluation.evaluate_toxicity(question, answer)
-            bias_score, bias_reason = evaluation.evaluate_bias(question, answer)
-            #ragas_score = evaluation.evaluate_ragas(question, answer, source)
+            # toxicity_score, toxicity_reason = evaluation.evaluate_toxicity(question, answer)
+            # bias_score, bias_reason = evaluation.evaluate_bias(question, answer)
+            # #ragas_score = evaluation.evaluate_ragas(question, answer, source)
 
-            return (similarity_score, score, reason, coherence_score, coherence_reason, faithfulness_score,
-                    faithfulness_reason, hallucination_score, hallucination_reason,
-                    toxicity_score, toxicity_reason, bias_score, bias_reason)
+            # return (similarity_score, score, reason, coherence_score, coherence_reason, faithfulness_score,
+            #         faithfulness_reason, hallucination_score, hallucination_reason,
+            #         toxicity_score, toxicity_reason, bias_score, bias_reason)
     
 
     def save_to_csv(self, question, source, answer, scores):

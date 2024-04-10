@@ -51,31 +51,32 @@ class Evaluation:
         evaluate([test_case], [coherence_metric])
         return coherence_metric.score, coherence_metric.reason
     
-    def evaluate_groundedness(self, input_text, actual_output):
-        # Define coherence evaluation logic here
+    def groundedness(self, input_text, source, actual_output):
         coherence_metric = GEval(
             name="Groundedness",
             criteria="Determine if the actual output is grounded to the context.",
-            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
+            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.RETRIEVAL_CONTEXT, LLMTestCaseParams.ACTUAL_OUTPUT],
         )
         test_case = LLMTestCase(
             input=input_text,
+            retrieval_context=source,
             actual_output=actual_output
+            
         )
         coherence_metric.measure(test_case)
         evaluate([test_case], [coherence_metric])
         return coherence_metric.score, coherence_metric.reason
     
-    def evaluate_context_relevance(self, input_text, actual_output):
-        # Define coherence evaluation logic here
+    def context_relevancy(self, input_text, source, actual_output):
         coherence_metric = GEval(
             name="Context Relevance",
             criteria="Determine if the actual output is relevant to the context.",
-            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
+            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.RETRIEVAL_CONTEXT],
         )
         test_case = LLMTestCase(
             input=input_text,
-            actual_output=actual_output
+            actual_output=actual_output,
+            retrieval_context=source
         )
         coherence_metric.measure(test_case)
         evaluate([test_case], [coherence_metric])
