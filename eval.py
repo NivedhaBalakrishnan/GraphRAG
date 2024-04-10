@@ -6,7 +6,7 @@ from scipy.spatial.distance import cosine
 
 
 class Evaluation:
-    def __init__(self, model_name="gpt-4"):
+    def __init__(self, model_name="gpt-3.5"):
         self.model_name = model_name
         
     def evaluate(self, question,source,answer):
@@ -21,18 +21,21 @@ class Evaluation:
         evaluate([test_case], [answer_relevancy_metric])
         return answer_relevancy_metric.score,answer_relevancy_metric.reason
     
+
     def cosine_similarity(self, vec1, vec2):
         if all(v == 0 for v in vec1) or all(v == 0 for v in vec2):
             return 0.0
         return 1 - cosine(vec1, vec2)
 
-    def evaluate_similarity(self, embeddings_model, answer,source):
+
+    def evaluate_similarity(self, embeddings_model, answer, source):
         vec1 = embeddings_model.embed_query(answer)
         vec2 = embeddings_model.embed_query(source)
         if not vec1 or not vec2:
             raise ValueError("One of the embedding vectors is empty.")
         return self.cosine_similarity(vec1, vec2)
     
+
     def evaluate_coherence(self, input_text, actual_output):
         # Define coherence evaluation logic here
         coherence_metric = GEval(
@@ -45,7 +48,40 @@ class Evaluation:
             actual_output=actual_output
         )
         coherence_metric.measure(test_case)
+        evaluate([test_case], [coherence_metric])
         return coherence_metric.score, coherence_metric.reason
+    
+    def evaluate_groundedness(self, input_text, actual_output):
+        # Define coherence evaluation logic here
+        coherence_metric = GEval(
+            name="Groundedness",
+            criteria="Determine if the actual output is grounded to the context.",
+            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
+        )
+        test_case = LLMTestCase(
+            input=input_text,
+            actual_output=actual_output
+        )
+        coherence_metric.measure(test_case)
+        evaluate([test_case], [coherence_metric])
+        return coherence_metric.score, coherence_metric.reason
+    
+    def evaluate_context_relevance(self, input_text, actual_output):
+        # Define coherence evaluation logic here
+        coherence_metric = GEval(
+            name="Context Relevance",
+            criteria="Determine if the actual output is relevant to the context.",
+            evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
+        )
+        test_case = LLMTestCase(
+            input=input_text,
+            actual_output=actual_output
+        )
+        coherence_metric.measure(test_case)
+        evaluate([test_case], [coherence_metric])
+        return coherence_metric.score, coherence_metric.reason
+    
+
     def evaluate_faithfulness(self, input_text, actual_output, retrieval_context):
         metric = FaithfulnessMetric(
             threshold=0.7,
@@ -59,37 +95,9 @@ class Evaluation:
             retrieval_context=retrieval_context
         )
         metric.measure(test_case)
+        evaluate([test_case], [metric])
         return metric.score, metric.reason
 
-    # def evaluate_contextual_precision(self, input_text, actual_output, expected_output, retrieval_context):
-    #     metric = ContextualPrecisionMetric(
-    #         threshold=0.7,
-    #         model="gpt-4",
-    #         include_reason=True
-    #     )
-    #     test_case = LLMTestCase(
-    #         input=input_text,
-    #         actual_output=actual_output,
-    #         expected_output=expected_output,
-    #         retrieval_context=retrieval_context
-    #     )
-    #     metric.measure(test_case)
-    #     return metric.score, metric.reason
-
-    # def evaluate_contextual_recall(self, input_text, actual_output, expected_output, retrieval_context):
-    #     metric = ContextualRecallMetric(
-    #         threshold=0.7,
-    #         model="gpt-4",
-    #         include_reason=True
-    #     )
-    #     test_case = LLMTestCase(
-    #         input=input_text,
-    #         actual_output=actual_output,
-    #         expected_output=expected_output,
-    #         retrieval_context=retrieval_context
-    #     )
-    #     metric.measure(test_case)
-    #     return metric.score, metric.reason
 
     def evaluate_hallucination(self, input_text, actual_output, context):
         retrieval_context = [context] if context is not None else None
@@ -100,6 +108,7 @@ class Evaluation:
             context= retrieval_context
         )
         metric.measure(test_case)
+        evaluate([test_case], [metric])
         return metric.score, metric.reason
 
     def evaluate_toxicity(self, input_text, actual_output):
@@ -109,6 +118,7 @@ class Evaluation:
             actual_output=actual_output
         )
         metric.measure(test_case)
+        evaluate([test_case], [metric])
         return metric.score, metric.reason
 
     def evaluate_bias(self, input_text, actual_output):
@@ -118,17 +128,12 @@ class Evaluation:
             actual_output=actual_output
         )
         metric.measure(test_case)
+        evaluate([test_case], [metric])
         return metric.score, metric.reason
 
-    # def evaluate_ragas(self, input_text, actual_output, expected_output, retrieval_context):
-    #     metric = RagasMetric(threshold=0.5, model="gpt-3.5-turbo")
-    #     test_case = LLMTestCase(
-    #         input=input_text,
-    #         actual_output=actual_output,
-    #         expected_output=expected_output,
-    #         retrieval_context=retrieval_context
-    #     )
-    #     metric.measure(test_case)
-    #     return metric.score
+
+
+
+
 
 
