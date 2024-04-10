@@ -2,9 +2,11 @@ import os
 from helper import Helper
 # Common data processing
 import json
+import torch
 import textwrap
 import pandas as pd
-
+from langchain_community.llms import HuggingFacePipeline
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from dotenv import load_dotenv 
 
 # Langchain
@@ -21,7 +23,6 @@ from neo4j import GraphDatabase
 import openai
 
 from eval import Evaluation
-import time
 
 
 
@@ -76,12 +77,32 @@ class GraphRAG():
             retriever = self.get_retriever()
             
             if retriever:
-                chain = RetrievalQAWithSourcesChain.from_chain_type(
-                    ChatOpenAI(temperature=0.5),
-                    chain_type="stuff",
-                    retriever=retriever, return_source_documents=True)
+                # Load the LLaMA tokenizer and model
+                model_name = "NivedhaBalakrishnan/llama_entity_extraction"
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                model = AutoModelForCausalLM.from_pretrained(model_name)
 
-                self.log.info('Chain created successfully')
+                # Create a Hugging Face pipeline
+                hf_pipeline = pipeline(
+                    "text-generation",
+                    model=model,
+                    tokenizer=tokenizer,
+                    temperature=0,
+                    max_length=4000,
+                    top_p=None
+                )
+
+                # Create a Hugging Face LLM wrapper
+                llm = HuggingFacePipeline(pipeline=hf_pipeline)
+
+                chain = RetrievalQAWithSourcesChain.from_chain_type(
+                    llm=llm,
+                    chain_type="stuff",
+                    retriever=retriever,
+                    return_source_documents=True
+                )
+
+                self.log.info('Chain created successfully with LLaMA model')
                 return chain
             else:
                 self.log.error('Retriever not created')
@@ -95,15 +116,11 @@ class GraphRAG():
         chain = self.get_chain()
         try:
             """Pretty print the chain's response to a question"""
-            start_time = time.time()
+            print("Getting response...")
             response = chain.invoke({"question": question})
-
-            end_time = time.time()  # Store the end time
-            elapsed_time = end_time - start_time
-
             sources = response.get('source_documents', '')
             source_content = "\n".join([doc.page_content for doc in sources])
-            return textwrap.fill(response['answer'], 60), source_content, elapsed_time
+            return textwrap.fill(response['answer'], 60), source_content
         except Exception as e:
             self.log.error(f'Error pretty printing chain: {e}')
             raise e
@@ -154,12 +171,12 @@ class GraphRAG():
 
         df = pd.DataFrame([data])
 
-        file_exists = os.path.isfile('er_metrics.csv')
+        file_exists = os.path.isfile('metrics_llama.csv')
 
         if file_exists:
-            df.to_csv('er_metrics.csv', mode='a', header=False, index=False)
+            df.to_csv('metrics_llama.csv', mode='a', header=False, index=False)
         else:
-            df.to_csv('er_metrics.csv', index=False)
+            df.to_csv('metrics_llama.csv', index=False)
 
         print("Scores saved successfully.")
 
@@ -178,16 +195,8 @@ if __name__ == '__main__':
     "What are the two main enzymes released by mast cells upon activation?",
     "What is the role of β-hexosaminidase (β-hex) in mast cell activation?",
     "What percentage of β-hex stored in lung mast cell secretory granules is released minutes after activation?"]
-    total_elapsed_time = 0
-    question_count = 0
+    
     for question in questions:
-        answer, source, elapsed_time = graph.get_response(question)
-        print(f"A: {answer}")
+        answer, source = graph.get_response(question)
         scores = graph.get_evaluated(question, source, answer)
         graph.save_to_csv(question, source, answer, scores)
-
-        total_elapsed_time += elapsed_time
-        question_count += 1
-
-    average_time = total_elapsed_time / question_count
-    print(f'Average time per question: {average_time} seconds')

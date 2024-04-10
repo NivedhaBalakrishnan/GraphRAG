@@ -11,3 +11,4 @@ matplotlib
 pyvis
 scipy
 deepeval
+transformers
